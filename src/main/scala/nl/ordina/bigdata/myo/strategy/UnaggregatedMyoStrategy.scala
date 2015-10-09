@@ -12,7 +12,7 @@ import org.apache.spark.sql.types.{DoubleType, StructField, StructType}
 import org.apache.spark.sql.{DataFrame, Row, SQLContext}
 
 class UnaggregatedMyoStrategy(val sc: SparkContext, val sqlContext: SQLContext) extends MyoStrategy {
-  val schema = determineSchemaFromHeader(Constants.UNAGGREGATED_HEADER)
+  private[this] val schema = determineSchemaFromHeader(Constants.UNAGGREGATED_HEADER)
 
   override def createDataFrame(path: String): DataFrame = {
     val data = sc.textFile(path + "/raw-myo-data/*.csv")
@@ -47,7 +47,7 @@ class UnaggregatedMyoStrategy(val sc: SparkContext, val sqlContext: SQLContext) 
     predictionDataFrame.groupBy("prediction").count().show()
   }
 
-  def determineSchemaFromHeader(header: Array[String]): StructType = {
+  private[this] def determineSchemaFromHeader(header: Array[String]): StructType = {
     StructType(header.map(name => StructField(name, DoubleType, nullable = false)))
   }
 
