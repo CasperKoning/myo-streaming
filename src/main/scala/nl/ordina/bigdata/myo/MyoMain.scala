@@ -32,43 +32,47 @@ object MyoMain {
     streamingContext.awaitTermination()
   }
 
+  def aggregateData(data: RDD[String]): RDD[Array[Double]] = ???
+
   def createDataFrame(path: String, sc: SparkContext, sqlContext: SQLContext): DataFrame = {
     val data = sc.textFile(path)
-    val headerPart = data.first()
-    val dataPart = data.filter(line => !line.startsWith("label")) //Want to leave out the header, so we filter it out
-    val schema = determineSchemaFromHeader(headerPart)
-    val rowRDD = dataPart.map(toMyoRow)
+    val aggregatedData = aggregateData(data)
+    val rowRDD = aggregatedData.map(toMyoRow)
+
+    val header = Constants.header
+    val schema = determineSchemaFromHeader(header)
     sqlContext.createDataFrame(rowRDD, schema)
   }
 
-  def determineSchemaFromHeader(header: String): StructType = {
-    val splits = header.split(";")
-    StructType(splits.map(name => StructField(name, DoubleType, nullable = false)))
+  def determineSchemaFromHeader(header: Array[String]): StructType = {
+    StructType(header.map(name => StructField(name, DoubleType, nullable = false)))
   }
 
-  def toMyoRow(line: String): Row = {
-    val splits = line.split(";")
-    Row.fromSeq(splits.map(_.toDouble))
+  def toMyoRow(line: Array[Double]): Row = {
+    Row.fromSeq(line)
   }
 
   def trainModel(dataFrame: DataFrame): CrossValidatorModel = {
-    val labelIndexer = new StringIndexer().setInputCol("label").setOutputCol("indexedLabel").fit(dataFrame)
-    val assembler = new VectorAssembler().setInputCols(Constants.featureCols).setOutputCol("features")
+    val splits = dataFrame.randomSplit(Array(0.7, 0.3))
+    val (trainingData, testingData) = (splits(0), splits(1))
+
+    val labelIndexer = new StringIndexer().setInputCol("label").setOutputCol("indexedLabel").fit(trainingData)
+    val assembler = new VectorAssembler().setInputCols(Constants.header).setOutputCol("features")
     val dt = new DecisionTreeClassifier().setLabelCol("indexedLabel").setFeaturesCol("features").setPredictionCol("prediction").setImpurity("gini")
     val pipeline = new Pipeline().setStages(Array(labelIndexer, assembler, dt))
 
     val paramGrid = new ParamGridBuilder()
-      .addGrid(dt.maxBins, Array(5, 10, 20))
-      .addGrid(dt.maxDepth, Array(5, 10, 20))
+      .addGrid(dt.maxBins, Array(5, 10, 25))
+      .addGrid(dt.maxDepth, Array(5, 10, 25))
       .build()
 
     val cv = new CrossValidator()
       .setEstimator(pipeline)
       .setEvaluator(new MulticlassClassificationEvaluator().setLabelCol("indexedLabel").setPredictionCol("prediction"))
       .setEstimatorParamMaps(paramGrid)
-      .setNumFolds(10)
+      .setNumFolds(2)
 
-    cv.fit(dataFrame)
+    cv.fit(trainingData)
   }
 
   /**
@@ -76,7 +80,8 @@ object MyoMain {
    * as a test implementation to the standard out.
    */
   def displayPrediction(rdd: RDD[String])(implicit model: CrossValidatorModel, sqlContext: SQLContext, schema: StructType): Unit = {
-    val dataFrame = sqlContext.createDataFrame(rdd.map(toMyoRow),schema)
+    val row = aggregateData(rdd).map(toMyoRow)
+    val dataFrame = sqlContext.createDataFrame(row, schema)
     val predictionDataFrame = model.transform(dataFrame)
     predictionDataFrame.foreach(row => println(s"prediction is ${row.get(row.fieldIndex("prediction"))}"))
   }
