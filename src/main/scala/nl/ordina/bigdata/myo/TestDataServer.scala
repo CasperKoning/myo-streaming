@@ -10,11 +10,11 @@ import scala.io.Source
  */
 object TestDataServer {
   def main(args: Array[String]) {
-    val server = new ServerSocket(Constants.dataServerPort)
+    val server = new ServerSocket(Constants.DATA_SERVER_PORT)
     val s = server.accept()
     val out = new PrintStream(s.getOutputStream)
     while (true) {
-      val file = Source.fromFile(Constants.dataPath)
+      val file = Source.fromFile(Constants.DATA_PATH)
       val in = file.getLines()
       in.next(); //skip header
       while (in.hasNext) {

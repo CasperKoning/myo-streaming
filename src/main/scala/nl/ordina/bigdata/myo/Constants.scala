@@ -1,9 +1,9 @@
 package nl.ordina.bigdata.myo
 
 object Constants {
-  val unaggregatedHeader = Array("a","b")
-  val dataPath = "D:/dev/code/myo-streaming/src/main/resources/aggregated-data.csv"
-  val dataServerPort = 9999
+  val UNAGGREGATED_HEADER = Array("label","feature1","feature2") //TODO supply with actual header
+  val DATA_PATH = "D:/dev/code/myo-streaming/src/main/resources"
+  val DATA_SERVER_PORT = 9999
 //  val featureCols = Array(
 //    "mean_1",
 //    "std_1",

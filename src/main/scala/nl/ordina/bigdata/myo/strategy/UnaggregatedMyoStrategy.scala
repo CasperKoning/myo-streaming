@@ -5,25 +5,24 @@ import org.apache.spark.SparkContext
 import org.apache.spark.ml.Pipeline
 import org.apache.spark.ml.classification.DecisionTreeClassifier
 import org.apache.spark.ml.evaluation.MulticlassClassificationEvaluator
-import org.apache.spark.ml.feature.{VectorAssembler, StringIndexer}
-import org.apache.spark.ml.tuning.{CrossValidator, ParamGridBuilder, CrossValidatorModel}
+import org.apache.spark.ml.feature.{StringIndexer, VectorAssembler}
+import org.apache.spark.ml.tuning.{CrossValidator, CrossValidatorModel, ParamGridBuilder}
 import org.apache.spark.rdd.RDD
-import org.apache.spark.sql.{Row, DataFrame, SQLContext}
 import org.apache.spark.sql.types.{DoubleType, StructField, StructType}
+import org.apache.spark.sql.{DataFrame, Row, SQLContext}
 
 class UnaggregatedMyoStrategy(val sc: SparkContext, val sqlContext: SQLContext) extends MyoStrategy {
-  override def createDataFrame(path: String): DataFrame = {
-    val data = sc.textFile(path)
-    val rowRDD = data.map(toUnaggregatedMyoRow)
+  val schema = determineSchemaFromHeader(Constants.UNAGGREGATED_HEADER)
 
-    val header = Constants.unaggregatedHeader
-    val schema = determineSchemaFromHeader(header)
+  override def createDataFrame(path: String): DataFrame = {
+    val data = sc.textFile(path + "/raw-myo-data/*.csv")
+    val rowRDD = data.map(toMyoRow)
     sqlContext.createDataFrame(rowRDD, schema)
   }
 
   override def trainModel(dataFrame: DataFrame): CrossValidatorModel = {
     val labelIndexer = new StringIndexer().setInputCol("label").setOutputCol("indexedLabel").fit(dataFrame)
-    val assembler = new VectorAssembler().setInputCols(Constants.unaggregatedHeader).setOutputCol("features")
+    val assembler = new VectorAssembler().setInputCols(Constants.UNAGGREGATED_HEADER).setOutputCol("features")
     val dt = new DecisionTreeClassifier().setLabelCol("indexedLabel").setFeaturesCol("features").setPredictionCol("prediction").setImpurity("gini")
     val pipeline = new Pipeline().setStages(Array(labelIndexer, assembler, dt))
 
@@ -36,26 +35,24 @@ class UnaggregatedMyoStrategy(val sc: SparkContext, val sqlContext: SQLContext) 
       .setEstimator(pipeline)
       .setEvaluator(new MulticlassClassificationEvaluator().setLabelCol("indexedLabel").setPredictionCol("prediction"))
       .setEstimatorParamMaps(paramGrid)
-      .setNumFolds(2)
+      .setNumFolds(10)
 
     cv.fit(dataFrame)
   }
 
   override def displayPrediction(rdd: RDD[String], model: CrossValidatorModel): Unit = {
-    //    val row = aggregateData(rdd).map(toUnaggregatedMyoRow)
-    //    val dataFrame = sqlContext.createDataFrame(row, schema)
-    //    val predictionDataFrame = model.transform(dataFrame)
-    //    predictionDataFrame.foreach(row => println(s"prediction is ${row.get(row.fieldIndex("prediction"))}"))
+    val row = rdd.map(toMyoRow)
+    val dataFrame = sqlContext.createDataFrame(row, schema)
+    val predictionDataFrame = model.transform(dataFrame)
+    predictionDataFrame.groupBy("prediction").count().show()
   }
-
 
   def determineSchemaFromHeader(header: Array[String]): StructType = {
     StructType(header.map(name => StructField(name, DoubleType, nullable = false)))
   }
 
-  def toUnaggregatedMyoRow(line: String): Row = {
+  private[this] def toMyoRow(line: String): Row = {
     val splits = line.split(";")
     Row.fromSeq(splits.map(_.toDouble))
   }
-
 }
