@@ -1,7 +1,8 @@
 package nl.ordina.bigdata.myo
 
 import nl.ordina.bigdata.myo.strategy.{AggregatedMyoStrategy, UnaggregatedMyoStrategy}
-import org.apache.spark.sql.SQLContext
+import org.apache.spark.sql.types.{DoubleType, StructField, StructType}
+import org.apache.spark.sql.{Row, SQLContext}
 import org.apache.spark.streaming.{Seconds, StreamingContext}
 import org.apache.spark.{SparkConf, SparkContext}
 
@@ -16,18 +17,18 @@ object MyoMain {
 
     //Initialize MyoStrategy
     val myoStrategy = args(0) match {
-      case "aggregated" => new AggregatedMyoStrategy(sc, sqlContext)
-      case "unaggregated" => new UnaggregatedMyoStrategy(sc, sqlContext)
+      case "aggregated" => new AggregatedMyoStrategy
+      case "unaggregated" => new UnaggregatedMyoStrategy
       case _ => throw new IllegalArgumentException(s"${args(0)} is not a valid strategy. Supported strategies are: 'aggregated' and 'unaggregated'.")
     }
 
     //Start training part
-    val dataFrame = myoStrategy.createDataFrame(Constants.DATA_PATH)
+    val dataFrame = myoStrategy.createDataFrame(Constants.DATA_PATH,sc,sqlContext)
     val model = myoStrategy.trainModel(dataFrame)
 
     //Start streaming part
     val dstream = streamingContext.socketTextStream("localhost", Constants.DATA_SERVER_PORT)
-    dstream.foreachRDD(rdd => myoStrategy.displayPrediction(rdd, model))
+    dstream.foreachRDD(rdd => myoStrategy.displayPrediction(rdd, model,sqlContext))
     streamingContext.start()
     streamingContext.awaitTermination()
   }

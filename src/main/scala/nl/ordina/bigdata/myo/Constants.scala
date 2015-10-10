@@ -1,7 +1,7 @@
 package nl.ordina.bigdata.myo
 
 object Constants {
-  val UNAGGREGATED_HEADER = Array("label","feature1","feature2") //TODO supply with actual header
+  val UNAGGREGATED_HEADER = Array("label","qx","qy","qz","pitch","roll","yaw","ax","ay","az","gx","gy","gz","?")
   val DATA_PATH = "D:/dev/code/myo-streaming/src/main/resources"
   val DATA_SERVER_PORT = 9999
 //  val featureCols = Array(
