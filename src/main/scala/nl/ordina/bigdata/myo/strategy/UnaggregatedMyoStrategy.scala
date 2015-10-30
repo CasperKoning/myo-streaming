@@ -3,27 +3,29 @@ package nl.ordina.bigdata.myo.strategy
 import nl.ordina.bigdata.myo.Constants
 import org.apache.spark.SparkContext
 import org.apache.spark.ml.Pipeline
-import org.apache.spark.ml.classification.DecisionTreeClassifier
 import org.apache.spark.ml.evaluation.MulticlassClassificationEvaluator
 import org.apache.spark.ml.feature.{StringIndexer, VectorAssembler}
+import org.apache.spark.ml.regression.DecisionTreeRegressor
 import org.apache.spark.ml.tuning.{CrossValidator, CrossValidatorModel, ParamGridBuilder}
 import org.apache.spark.rdd.RDD
-import org.apache.spark.sql.types.{DoubleType, StructField, StructType}
-import org.apache.spark.sql.{DataFrame, Row, SQLContext}
+import org.apache.spark.sql.types.StructType
+import org.apache.spark.sql.{SQLContext, DataFrame}
 
 class UnaggregatedMyoStrategy extends MyoStrategy {
-  private[this] val schema = determineSchemaFromHeader(Constants.UNAGGREGATED_HEADER)
+  private var schema: StructType = null
 
   override def createDataFrame(path: String, sc: SparkContext, sqlContext: SQLContext): DataFrame = {
-    val data = sc.textFile(path + "/raw-myo-data/*.csv")
-    val rowRDD = data.map(toMyoRow)
-    sqlContext.createDataFrame(rowRDD, schema)
+    val dataFrame: DataFrame = sqlContext.read.json(path + "/raw-myo-data/*.json")
+    this.schema = dataFrame.schema
+    dataFrame
   }
 
+
   override def trainModel(dataFrame: DataFrame): CrossValidatorModel = {
-    val labelIndexer = new StringIndexer().setInputCol("label").setOutputCol("indexedLabel").fit(dataFrame)
-    val assembler = new VectorAssembler().setInputCols(Constants.UNAGGREGATED_HEADER).setOutputCol("features")
-    val dt = new DecisionTreeClassifier().setLabelCol("indexedLabel").setFeaturesCol("features").setPredictionCol("prediction").setImpurity("gini")
+    val labelIndexer = new StringIndexer().setInputCol(Constants.LABEL).setOutputCol("indexedLabel").fit(dataFrame)
+
+    val assembler = new VectorAssembler().setInputCols(Constants.FEATURES).setOutputCol("features")
+    val dt = new DecisionTreeRegressor().setLabelCol("indexedLabel").setFeaturesCol("features").setPredictionCol("prediction")
     val pipeline = new Pipeline().setStages(Array(labelIndexer, assembler, dt))
 
     val paramGrid = new ParamGridBuilder()
@@ -41,18 +43,9 @@ class UnaggregatedMyoStrategy extends MyoStrategy {
   }
 
   override def displayPrediction(rdd: RDD[String], model: CrossValidatorModel, sqlContext: SQLContext): Unit = {
-    val row = rdd.map(toMyoRow)
-    val dataFrame = sqlContext.createDataFrame(row, schema)
+    val dataFrame = sqlContext.read.schema(schema).json(rdd)
     val predictionDataFrame = model.transform(dataFrame)
     predictionDataFrame.groupBy("prediction").count().show()
   }
 
-  private[this] def determineSchemaFromHeader(header: Array[String]): StructType = {
-    StructType(header.map(name => StructField(name, DoubleType, nullable = false)))
-  }
-
-  private[this] def toMyoRow(line: String): Row = {
-    val splits = line.split(";")
-    Row.fromSeq(splits.map(_.toDouble))
-  }
 }
