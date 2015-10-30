@@ -15,7 +15,7 @@ class UnaggregatedMyoStrategy extends MyoStrategy {
   private var schema: StructType = null
 
   override def createDataFrame(path: String, sc: SparkContext, sqlContext: SQLContext): DataFrame = {
-    val dataFrame: DataFrame = sqlContext.read.json(path + "/raw-myo-data/*.json")
+    val dataFrame: DataFrame = sqlContext.read.json(path + "/myo-data-with-label/*.json")
     this.schema = dataFrame.schema
     dataFrame
   }
