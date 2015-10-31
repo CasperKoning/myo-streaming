@@ -29,13 +29,13 @@ object MyoMain {
     val model = if (shouldTrainModel) {
       val dataFrame = myoStrategy.createDataFrame(Constants.DATA_PATH, sc, sqlContext)
       val trainedModel = myoStrategy.trainModel(dataFrame)
-      val oos = new ObjectOutputStream(new FileOutputStream("D:\\dev\\spark-output\\crossvallidator-model"))
+      val oos = new ObjectOutputStream(new FileOutputStream(Constants.MODEL_PATH))
       oos.writeObject(trainedModel)
       oos.close()
       trainedModel
     } else {
       val dataFrame = myoStrategy.createDataFrame(Constants.DATA_PATH, sc, sqlContext) //Has to be called to read in a schema... mutability hurray
-      val ois = new ObjectInputStream(new FileInputStream("D:\\dev\\spark-output\\crossvallidator-model"))
+      val ois = new ObjectInputStream(new FileInputStream(Constants.MODEL_PATH))
       ois.readObject().asInstanceOf[CrossValidatorModel]
     }
 
