@@ -2,7 +2,7 @@ package nl.ordina.bigdata.myo.strategy
 
 import nl.ordina.bigdata.myo.Constants
 import org.apache.spark.ml.Pipeline
-import org.apache.spark.ml.evaluation.MulticlassClassificationEvaluator
+import org.apache.spark.ml.evaluation.{RegressionEvaluator, MulticlassClassificationEvaluator}
 import org.apache.spark.ml.feature.{PCA, VectorAssembler}
 import org.apache.spark.ml.regression.DecisionTreeRegressor
 import org.apache.spark.ml.tuning.{CrossValidator, CrossValidatorModel, ParamGridBuilder}
@@ -44,7 +44,7 @@ class UnaggregatedMyoStrategy extends MyoStrategy {
 
     val cv = new CrossValidator()
       .setEstimator(pipeline)
-      .setEvaluator(new MulticlassClassificationEvaluator().setLabelCol(Constants.LABEL).setPredictionCol("prediction"))
+      .setEvaluator(new RegressionEvaluator().setLabelCol(Constants.LABEL).setPredictionCol("prediction").setMetricName("rmse"))
       .setEstimatorParamMaps(paramGrid)
       .setNumFolds(3)
 
