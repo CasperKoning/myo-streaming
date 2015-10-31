@@ -1,8 +1,10 @@
 package nl.ordina.bigdata.myo
 
+import java.io.{FileInputStream, FileOutputStream, ObjectInputStream, ObjectOutputStream}
+
 import nl.ordina.bigdata.myo.strategy.{AggregatedMyoStrategy, UnaggregatedMyoStrategy}
-import org.apache.spark.sql.types.{DoubleType, StructField, StructType}
-import org.apache.spark.sql.{Row, SQLContext}
+import org.apache.spark.ml.tuning.CrossValidatorModel
+import org.apache.spark.sql.SQLContext
 import org.apache.spark.streaming.{Seconds, StreamingContext}
 import org.apache.spark.{SparkConf, SparkContext}
 
@@ -23,8 +25,19 @@ object MyoMain {
     }
 
     //Start training part
-    val dataFrame = myoStrategy.createDataFrame(Constants.DATA_PATH,sc,sqlContext)
-    val model = myoStrategy.trainModel(dataFrame)
+    val shouldTrainModel = false
+    val model = if (shouldTrainModel) {
+      val dataFrame = myoStrategy.createDataFrame(Constants.DATA_PATH, sc, sqlContext)
+      val trainedModel = myoStrategy.trainModel(dataFrame)
+      val oos = new ObjectOutputStream(new FileOutputStream("D:\\dev\\spark-output\\crossvallidator-model"))
+      oos.writeObject(trainedModel)
+      oos.close()
+      trainedModel
+    } else {
+      val dataFrame = myoStrategy.createDataFrame(Constants.DATA_PATH, sc, sqlContext) //Has to be called to read in a schema... mutability hurray
+      val ois = new ObjectInputStream(new FileInputStream("D:\\dev\\spark-output\\crossvallidator-model"))
+      ois.readObject().asInstanceOf[CrossValidatorModel]
+    }
 
     //Start streaming part
     val dstream = streamingContext.socketTextStream("localhost", Constants.DATA_SERVER_PORT)
