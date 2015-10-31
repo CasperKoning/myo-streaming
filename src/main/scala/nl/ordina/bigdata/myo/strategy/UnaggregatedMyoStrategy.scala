@@ -1,15 +1,16 @@
 package nl.ordina.bigdata.myo.strategy
 
 import nl.ordina.bigdata.myo.Constants
-import org.apache.spark.SparkContext
 import org.apache.spark.ml.Pipeline
 import org.apache.spark.ml.evaluation.MulticlassClassificationEvaluator
 import org.apache.spark.ml.feature.{PCA, VectorAssembler}
 import org.apache.spark.ml.regression.DecisionTreeRegressor
 import org.apache.spark.ml.tuning.{CrossValidator, CrossValidatorModel, ParamGridBuilder}
 import org.apache.spark.rdd.RDD
+import org.apache.spark.sql.functions._
 import org.apache.spark.sql.types.StructType
 import org.apache.spark.sql.{DataFrame, SQLContext}
+import org.apache.spark.{SparkContext, SparkException}
 
 class UnaggregatedMyoStrategy extends MyoStrategy {
   private var schema: StructType = null
@@ -35,7 +36,7 @@ class UnaggregatedMyoStrategy extends MyoStrategy {
       .setPredictionCol("prediction")
       .setImpurity("variance")
 
-    val pipeline = new Pipeline().setStages(Array(assembler,pca, dt))
+    val pipeline = new Pipeline().setStages(Array(assembler, pca, dt))
 
     val paramGrid = new ParamGridBuilder()
       .addGrid(dt.maxDepth, Array(20))
@@ -52,8 +53,13 @@ class UnaggregatedMyoStrategy extends MyoStrategy {
 
   override def displayPrediction(rdd: RDD[String], model: CrossValidatorModel, sqlContext: SQLContext): Unit = {
     val dataFrame = sqlContext.read.schema(schema).json(rdd)
-    val predictionsDataFrame = model.transform(dataFrame)
-    predictionsDataFrame.select("prediction").show()
+    try {
+      val predictionsDataFrame = model.transform(dataFrame)
+      val aggregated = predictionsDataFrame.agg(avg(predictionsDataFrame("prediction")))
+      aggregated.show()
+    } catch {
+      case e: SparkException => println("Op een of andere manier is er een lege string naar Spark gestuurd. Hierdoor kunnen we deze RDD niet verwerken. Slaan we dus over.")
+    }
   }
 
 }
