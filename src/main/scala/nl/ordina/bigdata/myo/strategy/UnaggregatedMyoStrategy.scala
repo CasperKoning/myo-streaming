@@ -2,7 +2,7 @@ package nl.ordina.bigdata.myo.strategy
 
 import nl.ordina.bigdata.myo.Constants
 import org.apache.spark.ml.Pipeline
-import org.apache.spark.ml.evaluation.{RegressionEvaluator, MulticlassClassificationEvaluator}
+import org.apache.spark.ml.evaluation.{Evaluator, RegressionEvaluator}
 import org.apache.spark.ml.feature.{PCA, VectorAssembler}
 import org.apache.spark.ml.regression.DecisionTreeRegressor
 import org.apache.spark.ml.tuning.{CrossValidator, CrossValidatorModel, ParamGridBuilder}
@@ -13,17 +13,15 @@ import org.apache.spark.sql.{DataFrame, SQLContext}
 import org.apache.spark.{SparkContext, SparkException}
 
 class UnaggregatedMyoStrategy extends MyoStrategy {
-  private var schema: StructType = null
-
   override def createDataFrame(path: String, sc: SparkContext, sqlContext: SQLContext): DataFrame = {
-    val dataFrame: DataFrame = sqlContext.read.json(path + "/myo-data-with-label/*.json")
-    this.schema = dataFrame.schema
-    dataFrame
+    sqlContext.read.json(path + "/myo-data-with-label/*.json")
   }
 
   override def trainModel(dataFrame: DataFrame): CrossValidatorModel = {
     dataFrame.cache()
-    val assembler = new VectorAssembler().setInputCols(Constants.FEATURES).setOutputCol("features")
+    val assembler = new VectorAssembler()
+      .setInputCols(Constants.FEATURES_UNAGGREGATED)
+      .setOutputCol("features")
 
     val pca = new PCA()
       .setInputCol("features")
@@ -31,35 +29,44 @@ class UnaggregatedMyoStrategy extends MyoStrategy {
       .setK(24)
 
     val dt = new DecisionTreeRegressor()
-      .setLabelCol(Constants.LABEL)
+      .setLabelCol("label")
       .setFeaturesCol("pcaFeatures")
       .setPredictionCol("prediction")
       .setImpurity("variance")
 
-    val pipeline = new Pipeline().setStages(Array(assembler, pca, dt))
+    val pipeline = new Pipeline()
+      .setStages(Array(assembler, pca, dt))
 
     val paramGrid = new ParamGridBuilder()
       .addGrid(dt.maxDepth, Array(20))
       .build()
 
+    val evaluator = getEvaluator()
+
     val cv = new CrossValidator()
       .setEstimator(pipeline)
-      .setEvaluator(new RegressionEvaluator().setLabelCol(Constants.LABEL).setPredictionCol("prediction").setMetricName("rmse"))
+      .setEvaluator(evaluator)
       .setEstimatorParamMaps(paramGrid)
       .setNumFolds(3)
 
     cv.fit(dataFrame)
   }
 
-  override def displayPrediction(rdd: RDD[String], model: CrossValidatorModel, sqlContext: SQLContext): Unit = {
+  override def displayPrediction(rdd: RDD[String], model: CrossValidatorModel, sqlContext: SQLContext, schema: StructType): Unit = {
     val dataFrame = sqlContext.read.schema(schema).json(rdd)
     try {
       val predictionsDataFrame = model.transform(dataFrame)
       val aggregated = predictionsDataFrame.agg(avg(predictionsDataFrame("prediction")))
       aggregated.show()
     } catch {
-      case e: SparkException => println("Op een of andere manier is er een lege string naar Spark gestuurd. Hierdoor kunnen we deze RDD niet verwerken. Slaan we dus over.")
+      case e: SparkException => print("")//println("Op een of andere manier is er een lege string naar Spark gestuurd. Hierdoor kunnen we deze RDD niet verwerken. Slaan we dus over.")
     }
   }
 
+  override def getEvaluator(): Evaluator = {
+    new RegressionEvaluator()
+      .setLabelCol("label")
+      .setPredictionCol("prediction")
+      .setMetricName("rmse")
+  }
 }
