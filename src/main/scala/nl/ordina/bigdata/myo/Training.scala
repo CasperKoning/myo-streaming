@@ -23,7 +23,8 @@ object Training {
 
     //Start training part
     val dataFrame = myoStrategy.createDataFrame(Constants.DATA_PATH, sc, sqlContext)
-    val splits = dataFrame.randomSplit(Array(0.7, 0.3))
+    dataFrame.filter("gyro_x != 0.0")
+    val splits = dataFrame.randomSplit(Array(0.7, 0.3),42)
     val (trainingDataFrame, testingDataFrame) = (splits(0), splits(1))
     val trainedModel = myoStrategy.trainModel(trainingDataFrame)
 
@@ -35,8 +36,8 @@ object Training {
     //Evaluate predictions
     val predictions = trainedModel.transform(testingDataFrame)
     val evaluator = myoStrategy.getEvaluator()
-    val rmse = evaluator.evaluate(predictions)
-    println(s"RMSE is  $rmse")
+    val precision = evaluator.evaluate(predictions)
+    println(s"Precision is  $precision")
   }
 
 }

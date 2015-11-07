@@ -1,6 +1,7 @@
 package nl.ordina.bigdata.myo
 
-import java.io.{ObjectInputStream, FileInputStream}
+import java.io.{OutputStream, PrintStream, ObjectInputStream, FileInputStream}
+import java.net.ServerSocket
 
 import nl.ordina.bigdata.myo.strategy.{AggregatedMyoStrategy, UnaggregatedMyoStrategy}
 import org.apache.spark.ml.tuning.CrossValidatorModel
@@ -24,7 +25,7 @@ object Streaming {
       case _ => throw new IllegalArgumentException(s"${args(0)} is not a valid strategy. Supported strategies are: 'aggregated' and 'unaggregated'.")
     }
 
-    val dataFrame = sqlContext.read.json(Constants.DATA_PATH + "/myo-data-with-label/*.json")
+    val dataFrame = sqlContext.read.json(Constants.DATA_PATH + "/myo-data-with-label-regression/*.json")
     val schema = dataFrame.schema
     val ois = new ObjectInputStream(new FileInputStream(Constants.MODEL_PATH))
     val model = ois.readObject().asInstanceOf[CrossValidatorModel]

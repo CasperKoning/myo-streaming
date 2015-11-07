@@ -46,4 +46,5 @@ object Constants {
   val DATA_PATH = "D:/dev/code/myo-streaming/src/main/resources"
   val MODEL_PATH = "D:/dev/spark-output/crossvallidator-model"
   val DATA_SERVER_PORT = 5555
+  val DATA_OUTPUT_PORT = 5556
 }
