@@ -11,9 +11,14 @@ import org.apache.spark.sql.types.StructType
 import org.apache.spark.sql.{DataFrame, SQLContext}
 import org.apache.spark.{SparkContext, SparkException}
 
+import scala.collection.Map
+
 class UnaggregatedMyoStrategy extends MyoStrategy {
   override def createDataFrame(path: String, sc: SparkContext, sqlContext: SQLContext): DataFrame = {
-    sqlContext.read.json(path + "/myo-data-with-label-classification/*.json")
+    val dataFrame = sqlContext.read.json(path + "/myo-data-with-label-classification/*.json").filter("gyro_x != 0.0")
+    val counts: Map[String, Long] = dataFrame.map(row => row.getAs[String]("label")).countByValue()
+    println(counts)
+    dataFrame
   }
 
   override def trainModel(dataFrame: DataFrame): CrossValidatorModel = {
@@ -22,10 +27,6 @@ class UnaggregatedMyoStrategy extends MyoStrategy {
       .setInputCol("label")
       .setOutputCol("indexedLabel")
 
-    //0.0 =
-    //1.0 =
-    //2.0 =
-
     val assembler = new VectorAssembler()
       .setInputCols(Constants.FEATURES_UNAGGREGATED)
       .setOutputCol("features")
@@ -33,7 +34,7 @@ class UnaggregatedMyoStrategy extends MyoStrategy {
     val pca = new PCA()
       .setInputCol("features")
       .setOutputCol("pcaFeatures")
-      .setK(24)
+      .setK(20)
 
     val dt = new DecisionTreeClassifier()
       .setLabelCol("indexedLabel")
@@ -45,7 +46,7 @@ class UnaggregatedMyoStrategy extends MyoStrategy {
       .setStages(Array(indexer, assembler, pca, dt))
 
     val paramGrid = new ParamGridBuilder()
-      .addGrid(dt.maxDepth, Array(10, 20))
+      .addGrid(dt.maxDepth, Array(10, 20, 30))
       .build()
 
     val evaluator = getEvaluator()
@@ -54,14 +55,14 @@ class UnaggregatedMyoStrategy extends MyoStrategy {
       .setEstimator(pipeline)
       .setEvaluator(evaluator)
       .setEstimatorParamMaps(paramGrid)
-      .setNumFolds(3)
+      .setNumFolds(10)
 
     cv.fit(dataFrame)
   }
 
   override def displayPrediction(rdd: RDD[String], model: CrossValidatorModel, sqlContext: SQLContext, schema: StructType): Unit = {
     try {
-      val dataFrame = sqlContext.read.schema(schema).json(rdd).drop("label") //drop label in order to prevent failure of the stringindexer model in the pipeline
+      val dataFrame = sqlContext.read.schema(schema).json(rdd).drop("label").filter("gyro_x != 0.0") //drop label in order to prevent failure of the stringindexer model in the pipeline
       val predictionsDataFrame = model.transform(dataFrame)
       val counts = predictionsDataFrame.map(row => row.getAs[Double]("prediction")).countByValue()
       val sorted = counts.toList.sorted(new Ordering[(Double, Long)] {
@@ -70,7 +71,13 @@ class UnaggregatedMyoStrategy extends MyoStrategy {
       if (sorted.nonEmpty) {
         val topClass = sorted.head._1
         println(counts)
-        println(topClass)
+        val topClassString = topClass match {
+          case 0.0 => "slow"
+          case 1.0 => "not moving"
+          case 2.0 => "medium"
+          case 3.0 => "fast"
+        }
+        println(topClassString)
       }
     } catch {
       case e: SparkException => print("") //println("Op een of andere manier is er een lege string naar Spark gestuurd. Hierdoor kunnen we deze RDD niet verwerken. Slaan we dus over.")

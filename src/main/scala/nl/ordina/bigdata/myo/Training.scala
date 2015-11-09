@@ -23,7 +23,6 @@ object Training {
 
     //Start training part
     val dataFrame = myoStrategy.createDataFrame(Constants.DATA_PATH, sc, sqlContext)
-    dataFrame.filter("gyro_x != 0.0")
     val splits = dataFrame.randomSplit(Array(0.7, 0.3),42)
     val (trainingDataFrame, testingDataFrame) = (splits(0), splits(1))
     val trainedModel = myoStrategy.trainModel(trainingDataFrame)

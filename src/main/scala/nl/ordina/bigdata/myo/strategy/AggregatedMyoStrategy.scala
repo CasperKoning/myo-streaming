@@ -1,12 +1,12 @@
 package nl.ordina.bigdata.myo.strategy
 
-import java.io.{File, PrintStream}
+import java.io.File
 
 import nl.ordina.bigdata.myo.Constants
 import org.apache.spark.ml.Pipeline
-import org.apache.spark.ml.evaluation.{Evaluator, RegressionEvaluator}
-import org.apache.spark.ml.feature.{PCA, VectorAssembler}
-import org.apache.spark.ml.regression.DecisionTreeRegressor
+import org.apache.spark.ml.classification.DecisionTreeClassifier
+import org.apache.spark.ml.evaluation.{Evaluator, MulticlassClassificationEvaluator}
+import org.apache.spark.ml.feature.{PCA, StringIndexer, VectorAssembler}
 import org.apache.spark.ml.tuning.{CrossValidator, CrossValidatorModel, ParamGridBuilder}
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.functions._
@@ -16,11 +16,10 @@ import org.apache.spark.{SparkContext, SparkException}
 
 class AggregatedMyoStrategy extends MyoStrategy {
   override def createDataFrame(path: String, sc: SparkContext, sqlContext: SQLContext): DataFrame = {
-    //    for file in filepath do
-    val directory = new File(path + "/myo-data-with-label-regression")
+    val directory = new File(path + "/myo-data-with-label-classification")
     val files = directory.listFiles().filter(_.isFile).filter(f => """.*\.json$""".r.findFirstIn(f.getName).isDefined)
     val aggregatedDataFrames = for (file <- files) yield {
-      val dataFrame = sqlContext.read.json(file.getAbsolutePath)
+      val dataFrame = sqlContext.read.json(file.getAbsolutePath).filter("gyro_x != 0.0")
       aggregateData(dataFrame)
     }
     aggregatedDataFrames.reduce(_ unionAll _)
@@ -28,7 +27,7 @@ class AggregatedMyoStrategy extends MyoStrategy {
 
   def aggregateData(dataFrame: DataFrame): DataFrame = {
     dataFrame.agg(
-      avg("label"),
+      first("label"),
       min("emg_0"), min("emg_1"), min("emg_2"), min("emg_3"), min("emg_4"), min("emg_5"), min("emg_6"), min("emg_7"),
       avg("emg_0"), avg("emg_1"), avg("emg_2"), avg("emg_3"), avg("emg_4"), avg("emg_5"), avg("emg_6"), avg("emg_7"),
       max("emg_0"), max("emg_1"), max("emg_2"), max("emg_3"), max("emg_4"), max("emg_5"), max("emg_6"), max("emg_7"),
@@ -61,19 +60,24 @@ class AggregatedMyoStrategy extends MyoStrategy {
 
   override def trainModel(dataFrame: DataFrame): CrossValidatorModel = {
     dataFrame.cache()
+
+    val indexer = new StringIndexer()
+      .setInputCol("FIRST(label)")
+      .setOutputCol("indexedLabel")
+
     val assembler = new VectorAssembler()
       .setInputCols(Constants.FEATURES_AGGREGATED)
       .setOutputCol("features")
 
-    val pca = new PCA().setInputCol("features").setOutputCol("pcaFeatures").setK(80)
+    val pca = new PCA().setInputCol("features").setOutputCol("pcaFeatures").setK(60)
 
-    val dt = new DecisionTreeRegressor()
-      .setLabelCol("avg(label)")
+    val dt = new DecisionTreeClassifier()
+      .setLabelCol("indexedLabel")
       .setFeaturesCol("pcaFeatures")
       .setPredictionCol("prediction")
-      .setImpurity("variance")
+      .setImpurity("gini")
 
-    val pipeline = new Pipeline().setStages(Array(assembler, pca, dt))
+    val pipeline = new Pipeline().setStages(Array(indexer, assembler, pca, dt))
 
     val paramGrid = new ParamGridBuilder()
       .addGrid(dt.maxDepth, Array(5, 10, 20, 30))
@@ -91,7 +95,7 @@ class AggregatedMyoStrategy extends MyoStrategy {
   }
 
   override def displayPrediction(rdd: RDD[String], model: CrossValidatorModel, sqlContext: SQLContext, schema: StructType): Unit = {
-    val dataFrame = sqlContext.read.schema(schema).json(rdd)
+    val dataFrame = sqlContext.read.schema(schema).json(rdd).drop("label").filter("gyro_x != 0.0")
     val aggregatedDataFrame = aggregateData(dataFrame)
     try {
       val predictionDataFrame = model.transform(aggregatedDataFrame)
@@ -103,9 +107,14 @@ class AggregatedMyoStrategy extends MyoStrategy {
   }
 
   override def getEvaluator(): Evaluator = {
-    new RegressionEvaluator()
-      .setLabelCol("avg(label)")
+    new MulticlassClassificationEvaluator()
+      .setLabelCol("indexedLabel")
       .setPredictionCol("prediction")
-      .setMetricName("rmse")
+      .setMetricName("precision")
+
+    //    new RegressionEvaluator()
+    //      .setLabelCol("avg(label)")
+    //      .setPredictionCol("prediction")
+    //      .setMetricName("rmse")
   }
 }
