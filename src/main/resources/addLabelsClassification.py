@@ -11,7 +11,7 @@ for path, dirs, files in os.walk(os.path.abspath(inputDirectory)):
     for filename in fnmatch.filter(files, "*.json"):
         filepath = os.path.join(path, filename)
         rotations = Decimal(filename.replace(".json",""))
-        label = "not moving" if rotations < 2000 else ("slow" if rotations >= 2000 and rotations < 4000 else ("medium" if rotations >= 4000 and rotations < 7000 else "fast"))
+        label = "slow" if rotations < 4000 else ("medium" if rotations >= 4000 and rotations < 7000 else "fast")
         with open(filepath) as f:
             s = f.read();
         s = s.replace("{","{\"label\":"+"\""+label+"\""+",")

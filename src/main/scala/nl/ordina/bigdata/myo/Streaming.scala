@@ -1,13 +1,12 @@
 package nl.ordina.bigdata.myo
 
-import java.io.{OutputStream, PrintStream, ObjectInputStream, FileInputStream}
-import java.net.ServerSocket
+import java.io.{FileInputStream, ObjectInputStream}
 
 import nl.ordina.bigdata.myo.strategy.{AggregatedMyoStrategy, UnaggregatedMyoStrategy}
 import org.apache.spark.ml.tuning.CrossValidatorModel
-import org.apache.spark.{SparkConf, SparkContext}
 import org.apache.spark.sql.SQLContext
-import org.apache.spark.streaming.{Milliseconds, StreamingContext, Seconds}
+import org.apache.spark.streaming.{Seconds, StreamingContext}
+import org.apache.spark.{SparkConf, SparkContext}
 
 object Streaming {
   def main(args: Array[String]): Unit = {
@@ -16,7 +15,7 @@ object Streaming {
     val sc = new SparkContext(conf)
     sc.setLogLevel("ERROR")
     val sqlContext = new SQLContext(sc)
-    val streamingContext = new StreamingContext(sc, Milliseconds(500))
+    val streamingContext = new StreamingContext(sc, Seconds(1))
 
     //Initialize MyoStrategy
     val myoStrategy = args(0) match {

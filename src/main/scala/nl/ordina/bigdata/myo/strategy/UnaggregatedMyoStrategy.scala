@@ -4,7 +4,7 @@ import nl.ordina.bigdata.myo.Constants
 import org.apache.spark.ml.Pipeline
 import org.apache.spark.ml.classification.DecisionTreeClassifier
 import org.apache.spark.ml.evaluation.{Evaluator, MulticlassClassificationEvaluator}
-import org.apache.spark.ml.feature.{PCA, StringIndexer, VectorAssembler}
+import org.apache.spark.ml.feature.{IndexToString, PCA, StringIndexer, VectorAssembler}
 import org.apache.spark.ml.tuning.{CrossValidator, CrossValidatorModel, ParamGridBuilder}
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.types.StructType
@@ -72,10 +72,9 @@ class UnaggregatedMyoStrategy extends MyoStrategy {
         val topClass = sorted.head._1
         println(counts)
         val topClassString = topClass match {
-          case 0.0 => "slow"
-          case 1.0 => "not moving"
-          case 2.0 => "medium"
-          case 3.0 => "fast"
+          case 0.0 => "medium"
+          case 1.0 => "slow"
+          case 2.0 => "fast"
         }
         println(topClassString)
       }

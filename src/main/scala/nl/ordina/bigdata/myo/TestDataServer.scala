@@ -14,7 +14,7 @@ object TestDataServer {
     val s = server.accept()
     val out = new PrintStream(s.getOutputStream)
     while (true) {
-      val file = Source.fromFile(Constants.DATA_PATH+"/raw-myo-data/4334.json")
+      val file = Source.fromFile(Constants.DATA_PATH + "/raw-myo-data/4334.json")
       val in = file.getLines()
       in.next(); //skip header
       while (in.hasNext) {

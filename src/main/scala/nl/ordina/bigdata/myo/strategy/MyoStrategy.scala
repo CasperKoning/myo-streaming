@@ -1,7 +1,5 @@
 package nl.ordina.bigdata.myo.strategy
 
-import java.io.PrintStream
-
 import org.apache.spark.SparkContext
 import org.apache.spark.ml.evaluation.Evaluator
 import org.apache.spark.ml.tuning.CrossValidatorModel
