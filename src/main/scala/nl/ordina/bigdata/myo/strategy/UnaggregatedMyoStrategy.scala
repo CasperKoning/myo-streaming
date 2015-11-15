@@ -1,5 +1,8 @@
 package nl.ordina.bigdata.myo.strategy
 
+import java.io.PrintStream
+import java.net.{InetAddress, Socket}
+
 import nl.ordina.bigdata.myo.Constants
 import org.apache.spark.ml.Pipeline
 import org.apache.spark.ml.classification.DecisionTreeClassifier
@@ -12,8 +15,14 @@ import org.apache.spark.sql.{DataFrame, SQLContext}
 import org.apache.spark.{SparkContext, SparkException}
 
 import scala.collection.Map
+import scala.io.BufferedSource
 
 class UnaggregatedMyoStrategy extends MyoStrategy {
+
+  val s = new Socket(InetAddress.getByName("localhost"), 5556)
+  val out = new PrintStream(s.getOutputStream())
+
+
   override def createDataFrame(path: String, sc: SparkContext, sqlContext: SQLContext): DataFrame = {
     val dataFrame = sqlContext.read.json(path + "/myo-data-with-label-classification/*.json").filter("gyro_x != 0.0")
     val counts: Map[String, Long] = dataFrame.map(row => row.getAs[String]("label")).countByValue()
@@ -62,6 +71,7 @@ class UnaggregatedMyoStrategy extends MyoStrategy {
 
   override def displayPrediction(rdd: RDD[String], model: CrossValidatorModel, sqlContext: SQLContext, schema: StructType): Unit = {
     try {
+
       val dataFrame = sqlContext.read.schema(schema).json(rdd).drop("label").filter("gyro_x != 0.0") //drop label in order to prevent failure of the stringindexer model in the pipeline
       val predictionsDataFrame = model.transform(dataFrame)
       val counts = predictionsDataFrame.map(row => row.getAs[Double]("prediction")).countByValue()
@@ -72,9 +82,17 @@ class UnaggregatedMyoStrategy extends MyoStrategy {
         val topClass = sorted.head._1
         println(counts)
         val topClassString = topClass match {
-          case 0.0 => "medium"
-          case 1.0 => "slow"
-          case 2.0 => "fast"
+          case 0.0 =>  {
+            out.println("medium")
+            "medium"
+          }
+          case 1.0 => {
+            out.println("slow")
+            "slow"
+          }
+          case 2.0 => {
+            out.println("fast")
+          "fast"}
         }
         println(topClassString)
       }

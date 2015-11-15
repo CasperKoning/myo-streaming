@@ -43,8 +43,8 @@ object Constants {
     "max(normalizedEulerAngels_pitch)", "max(normalizedEulerAngels_roll)", "max(normalizedEulerAngels_yaw)"
   )
 
-  val DATA_PATH = "D:/dev/code/myo-streaming/src/main/resources"
-  val MODEL_PATH = "D:/dev/spark-output/crossvallidator-model"
+  val DATA_PATH = "C:/data/github/myo-streaming/src/main/resources"
+  val MODEL_PATH = "F:/tmp/crossvallidator-model"
   val DATA_SERVER_PORT = 5555
   val DATA_OUTPUT_PORT = 5556
 }
